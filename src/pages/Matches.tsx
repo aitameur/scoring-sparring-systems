@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import { saveMatch } from "../services/api";
 
 interface Player {
   name: string;
@@ -28,6 +29,32 @@ const Matches = () => {
 
   const { toast } = useToast();
 
+  const handleMatchEnd = async (winner: "blue" | "red") => {
+    try {
+      await saveMatch({
+        tournament_id: 1, // You'll need to pass the actual tournament ID
+        blue_player: currentMatch.bluePlayer.name,
+        red_player: currentMatch.redPlayer.name,
+        winner: winner,
+        blue_score: currentMatch.bluePlayer.score,
+        red_score: currentMatch.redPlayer.score,
+        blue_penalties: currentMatch.bluePlayer.penalties,
+        red_penalties: currentMatch.redPlayer.penalties,
+      });
+      
+      toast({
+        title: "Match saved",
+        description: "Match result has been recorded successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save match result",
+        variant: "destructive",
+      });
+    }
+  };
+
   const addPoints = (player: "blue" | "red", points: number) => {
     setCurrentMatch((prev) => {
       const updatedMatch = {
@@ -38,12 +65,8 @@ const Matches = () => {
         },
       };
 
-      // Check win condition
       if (updatedMatch[player === "blue" ? "bluePlayer" : "redPlayer"].score >= 12) {
-        toast({
-          title: `${updatedMatch[player === "blue" ? "bluePlayer" : "redPlayer"].name} wins!`,
-          description: "Match completed by points",
-        });
+        handleMatchEnd(player);
         return { ...updatedMatch, winner: player };
       }
 
@@ -61,12 +84,8 @@ const Matches = () => {
         },
       };
 
-      // Check penalty win condition
       if (updatedMatch[player === "blue" ? "bluePlayer" : "redPlayer"].penalties >= 5) {
-        toast({
-          title: `${updatedMatch[player === "red" ? "redPlayer" : "bluePlayer"].name} wins!`,
-          description: "Match completed by penalties",
-        });
+        handleMatchEnd(player === "blue" ? "red" : "blue");
         return { ...updatedMatch, winner: player === "blue" ? "red" : "blue" };
       }
 
