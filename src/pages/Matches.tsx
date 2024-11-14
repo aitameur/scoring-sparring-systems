@@ -1,23 +1,11 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { saveMatch } from "../services/api";
-
-interface Player {
-  name: string;
-  score: number;
-  penalties: number;
-}
-
-interface Match {
-  id: number;
-  round: number;
-  bluePlayer: Player;
-  redPlayer: Player;
-  winner?: "blue" | "red";
-}
+import PlayerPanel from "@/components/match/PlayerPanel";
+import RoundResults from "@/components/match/RoundResults";
+import type { Match, RoundResult } from "@/types/match";
 
 const Matches = () => {
   const [currentMatch, setCurrentMatch] = useState<Match>({
@@ -27,31 +15,54 @@ const Matches = () => {
     redPlayer: { name: "Player 2", score: 0, penalties: 0 },
   });
 
+  const [roundResults, setRoundResults] = useState<(RoundResult | null)[]>([null, null]);
   const { toast } = useToast();
 
-  const handleMatchEnd = async (winner: "blue" | "red") => {
-    try {
-      await saveMatch({
-        tournament_id: 1, // You'll need to pass the actual tournament ID
-        blue_player: currentMatch.bluePlayer.name,
-        red_player: currentMatch.redPlayer.name,
-        winner: winner,
-        blue_score: currentMatch.bluePlayer.score,
-        red_score: currentMatch.redPlayer.score,
-        blue_penalties: currentMatch.bluePlayer.penalties,
-        red_penalties: currentMatch.redPlayer.penalties,
-      });
-      
-      toast({
-        title: "Match saved",
-        description: "Match result has been recorded successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save match result",
-        variant: "destructive",
-      });
+  const handleRoundEnd = async (winner: "blue" | "red") => {
+    const currentRoundIndex = currentMatch.round - 1;
+    const newRoundResults = [...roundResults];
+    newRoundResults[currentRoundIndex] = {
+      winner,
+      blueScore: currentMatch.bluePlayer.score,
+      redScore: currentMatch.redPlayer.score,
+      bluePenalties: currentMatch.bluePlayer.penalties,
+      redPenalties: currentMatch.redPlayer.penalties,
+    };
+    setRoundResults(newRoundResults);
+
+    // Check if player has won both rounds
+    if (currentRoundIndex > 0 && newRoundResults[0]?.winner === winner) {
+      try {
+        await saveMatch({
+          tournament_id: 1,
+          blue_player: currentMatch.bluePlayer.name,
+          red_player: currentMatch.redPlayer.name,
+          winner: winner,
+          blue_score: currentMatch.bluePlayer.score,
+          red_score: currentMatch.redPlayer.score,
+          blue_penalties: currentMatch.bluePlayer.penalties,
+          red_penalties: currentMatch.redPlayer.penalties,
+        });
+        
+        toast({
+          title: "Match completed",
+          description: `${winner === "blue" ? "Blue" : "Red"} player wins the match!`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to save match result",
+          variant: "destructive",
+        });
+      }
+    } else if (currentMatch.round === 1) {
+      // Start next round
+      setCurrentMatch(prev => ({
+        ...prev,
+        round: 2,
+        bluePlayer: { ...prev.bluePlayer, score: 0, penalties: 0 },
+        redPlayer: { ...prev.redPlayer, score: 0, penalties: 0 },
+      }));
     }
   };
 
@@ -66,8 +77,7 @@ const Matches = () => {
       };
 
       if (updatedMatch[player === "blue" ? "bluePlayer" : "redPlayer"].score >= 12) {
-        handleMatchEnd(player);
-        return { ...updatedMatch, winner: player };
+        handleRoundEnd(player);
       }
 
       return updatedMatch;
@@ -85,8 +95,7 @@ const Matches = () => {
       };
 
       if (updatedMatch[player === "blue" ? "bluePlayer" : "redPlayer"].penalties >= 5) {
-        handleMatchEnd(player === "blue" ? "red" : "blue");
-        return { ...updatedMatch, winner: player === "blue" ? "red" : "blue" };
+        handleRoundEnd(player === "blue" ? "red" : "blue");
       }
 
       return updatedMatch;
@@ -102,97 +111,26 @@ const Matches = () => {
             <h1 className="text-2xl font-bold">Current Match</h1>
           </div>
 
-          <div className="grid grid-cols-3 gap-6">
-            {/* Blue Player */}
-            <div className="space-y-4">
-              <div className="text-center">
-                <h2 className="player-name text-tkd-blue">{currentMatch.bluePlayer.name}</h2>
-                <div className="score-display text-tkd-blue">
-                  {currentMatch.bluePlayer.score}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Penalties: {currentMatch.bluePlayer.penalties}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Button
-                  onClick={() => addPoints("blue", 1)}
-                  className="w-full"
-                  variant="outline"
-                >
-                  +1 Point
-                </Button>
-                <Button
-                  onClick={() => addPoints("blue", 2)}
-                  className="w-full"
-                  variant="outline"
-                >
-                  +2 Points
-                </Button>
-                <Button
-                  onClick={() => addPoints("blue", 3)}
-                  className="w-full"
-                  variant="outline"
-                >
-                  +3 Points
-                </Button>
-                <Button
-                  onClick={() => addPenalty("blue")}
-                  variant="destructive"
-                  className="w-full"
-                >
-                  Add Penalty
-                </Button>
-              </div>
-            </div>
+          <RoundResults roundResults={roundResults} />
 
-            {/* Center Section */}
+          <div className="grid grid-cols-3 gap-6">
+            <PlayerPanel
+              player={currentMatch.bluePlayer}
+              color="blue"
+              onAddPoints={(points) => addPoints("blue", points)}
+              onAddPenalty={() => addPenalty("blue")}
+            />
+
             <div className="flex items-center justify-center">
               <div className="text-6xl font-bold text-muted-foreground">VS</div>
             </div>
 
-            {/* Red Player */}
-            <div className="space-y-4">
-              <div className="text-center">
-                <h2 className="player-name text-tkd-red">{currentMatch.redPlayer.name}</h2>
-                <div className="score-display text-tkd-red">
-                  {currentMatch.redPlayer.score}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Penalties: {currentMatch.redPlayer.penalties}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Button
-                  onClick={() => addPoints("red", 1)}
-                  className="w-full"
-                  variant="outline"
-                >
-                  +1 Point
-                </Button>
-                <Button
-                  onClick={() => addPoints("red", 2)}
-                  className="w-full"
-                  variant="outline"
-                >
-                  +2 Points
-                </Button>
-                <Button
-                  onClick={() => addPoints("red", 3)}
-                  className="w-full"
-                  variant="outline"
-                >
-                  +3 Points
-                </Button>
-                <Button
-                  onClick={() => addPenalty("red")}
-                  variant="destructive"
-                  className="w-full"
-                >
-                  Add Penalty
-                </Button>
-              </div>
-            </div>
+            <PlayerPanel
+              player={currentMatch.redPlayer}
+              color="red"
+              onAddPoints={(points) => addPoints("red", points)}
+              onAddPenalty={() => addPenalty("red")}
+            />
           </div>
         </Card>
       </div>
