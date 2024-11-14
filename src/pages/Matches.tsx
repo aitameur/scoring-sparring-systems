@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
@@ -8,6 +9,7 @@ import RoundResults from "@/components/match/RoundResults";
 import type { Match, RoundResult } from "@/types/match";
 
 const Matches = () => {
+  const navigate = useNavigate();
   const [currentMatch, setCurrentMatch] = useState<Match>({
     id: 1,
     round: 1,
@@ -48,6 +50,11 @@ const Matches = () => {
           title: "Match completed",
           description: `${winner === "blue" ? "Blue" : "Red"} player wins the match!`,
         });
+
+        // Navigate back to index after a short delay
+        setTimeout(() => {
+          navigate("/");
+        }, 2000);
       } catch (error) {
         toast({
           title: "Error",
